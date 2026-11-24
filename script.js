@@ -680,9 +680,9 @@ const GEMINI_RESPONSE_SCHEMA = {
 };
 
 async function callGeminiVisionAPI(base64Data, mimeType, apiKey) {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
-    apiKey
-  )}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(
+  apiKey
+)}`;
 
   const systemPrompt = `You are an expert Thai & International Certified Public Accountant (CPA) OCR and data extraction engine.
 Analyze the attached receipt or tax invoice image/PDF and extract all fields strictly matching the JSON schema:
