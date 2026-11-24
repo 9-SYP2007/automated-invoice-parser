@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automated Invoice & Receipt Parser for Accounting</title>
+
+  <!-- Google Fonts: Inter (English) & Sarabun (Thai) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Lightweight Client-Side CDN Libraries: SheetJS (Excel) & PDF.js (PDF Canvas Preview) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">🧾</div>
+        <div>
+          <h1 class="brand-title" data-i18n="appTitle">
+            ระบบแยกข้อมูลใบแจ้งหนี้และใบเสร็จอัตโนมัติเพื่องานบัญชี
+          </h1>
+          <p class="brand-subtitle" data-i18n="appSubtitle">
+            Automated Invoice &amp; Receipt Parser for Accounting (Gemini 2.5 Flash Vision)
+          </p>
+        </div>
+      </div>
+
+      <!-- Bilingual Language Switcher -->
+      <div class="lang-toggle" role="group" aria-label="Language Switcher">
+        <button type="button" id="langThBtn" class="lang-btn active" data-lang="th">
+          🇹🇭 ไทย
+        </button>
+        <button type="button" id="langEnBtn" class="lang-btn" data-lang="en">
+          🇬🇧 English
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- 5-Stage IT Workflow Progress Diagram -->
+    <section class="card workflow-card" aria-label="System Workflow">
+      <div class="workflow-steps" id="workflowSteps">
+        <div class="wf-step active" data-step="1">
+          <span class="wf-badge">1</span>
+          <span class="wf-label" data-i18n="wfStep1">อัปโหลดใบเสร็จ (รูปภาพ/PDF)</span>
+        </div>
+        <div class="wf-arrow" aria-hidden="true">→</div>
+        <div class="wf-step" data-step="2">
+          <span class="wf-badge">2</span>
+          <span class="wf-label" data-i18n="wfStep2">สกัดข้อมูลด้วย Gemini Vision</span>
+        </div>
+        <div class="wf-arrow" aria-hidden="true">→</div>
+        <div class="wf-step" data-step="3">
+          <span class="wf-badge">3</span>
+          <span class="wf-label" data-i18n="wfStep3">ตรวจสอบยอดเงินและ VAT 7%</span>
+        </div>
+        <div class="wf-arrow" aria-hidden="true">→</div>
+        <div class="wf-step" data-step="4">
+          <span class="wf-badge">4</span>
+          <span class="wf-label" data-i18n="wfStep4">ตรวจสอบและแก้ไขข้อมูลบัญชี</span>
+        </div>
+        <div class="wf-arrow" aria-hidden="true">→</div>
+        <div class="wf-step" data-step="5">
+          <span class="wf-badge">5</span>
+          <span class="wf-label" data-i18n="wfStep5">ส่งออก Excel (.xlsx) / JSON</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Setup & Upload Control Grid -->
+    <section class="setup-grid">
+      <!-- Left: Google Gemini API Key Management -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span>🔑</span>
+            <span data-i18n="apiCardTitle">การตั้งค่า Google Gemini API Key</span>
+          </h2>
+          <span id="apiStatusBadge" class="status-pill status-warn" data-i18n="apiStatusMissing">
+            ยังไม่ได้ใส่ Key
+          </span>
+        </div>
+        <p class="card-desc" data-i18n="apiCardDesc">
+          ประมวลผลบนเบราว์เซอร์ 100% คีย์ของคุณจะถูกเก็บไว้ในเครื่องของคุณเท่านั้น (ไม่ส่งผ่านเซิร์ฟเวอร์ตัวกลาง)
+        </p>
+
+        <div class="api-input-group">
+          <input
+            type="password"
+            id="apiKeyInput"
+            class="form-input"
+            data-i18n-placeholder="apiKeyPlaceholder"
+            placeholder="กรอก Google Gemini API Key (AIza...)"
+            autocomplete="off"
+          />
+          <button
+            type="button"
+            id="toggleApiVisibilityBtn"
+            class="btn btn-secondary btn-icon"
+            title="Show/Hide API Key"
+            aria-label="Toggle API Key visibility"
+          >
+            👁️
+          </button>
+        </div>
+
+        <div class="btn-row mt-sm">
+          <button type="button" id="saveApiKeyBtn" class="btn btn-primary" data-i18n="saveKeyBtn">
+            💾 บันทึก Key ลงเครื่อง
+          </button>
+          <button type="button" id="clearApiKeyBtn" class="btn btn-outline" data-i18n="clearKeyBtn">
+            🗑️ ลบ Key
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Multi-File Receipt / Invoice Dropzone -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span>📤</span>
+            <span data-i18n="uploadCardTitle">อัปโหลดใบเสร็จ / ใบกำกับภาษี</span>
+          </h2>
+          <span class="badge-muted">PNG, JPG, JPEG, PDF</span>
+        </div>
+
+        <div id="dropZone" class="dropzone" tabindex="0" role="button" aria-label="Upload receipts">
+          <input
+            type="file"
+            id="fileInput"
+            accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+            multiple
+            hidden
+          />
+          <div class="dropzone-icon" aria-hidden="true">📄</div>
+          <p class="dropzone-main" data-i18n="dropzoneMain">
+            ลากไฟล์มาวางที่นี่ หรือ คลิกเพื่อเลือกไฟล์ (รองรับหลายไฟล์พร้อมกัน)
+          </p>
+          <p class="dropzone-sub" data-i18n="dropzoneSub">
+            รองรับใบเสร็จภาษาไทยและอังกฤษ (.png, .jpg, .jpeg, .pdf)
+          </p>
+        </div>
+
+        <!-- Pending File Queue -->
+        <div id="pendingFilesContainer" class="pending-files hidden"></div>
+
+        <div class="btn-row mt-sm">
+          <button type="button" id="processBtn" class="btn btn-primary" disabled data-i18n="extractBtn">
+            ✨ สกัดข้อมูลด้วย AI
+          </button>
+          <button type="button" id="loadDemoBtn" class="btn btn-secondary" data-i18n="loadDemoBtn">
+            🧪 โหลดตัวอย่างทดสอบ
+          </button>
+          <button type="button" id="clearAllBtn" class="btn btn-outline" data-i18n="clearAllBtn">
+            ล้างทั้งหมด
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Top KPI Summary Cards (Always Visible) -->
+    <section class="kpi-grid" aria-label="Accounting Summary KPIs">
+      <div class="card kpi-card">
+        <span class="kpi-label" data-i18n="kpiTotalReceipts">จำนวนใบเสร็จที่ประมวลผล</span>
+        <strong class="kpi-value" id="kpiReceiptsCount">0</strong>
+        <span class="kpi-sub" id="kpiReceiptsSub" data-i18n="kpiReceiptsSub">รายการทั้งหมดในระบบ</span>
+      </div>
+
+      <div class="card kpi-card">
+        <span class="kpi-label" data-i18n="kpiTotalSpend">ยอดใช้จ่ายสุทธิรวม (THB)</span>
+        <strong class="kpi-value" id="kpiNetSpend">฿0.00</strong>
+        <span class="kpi-sub" data-i18n="kpiSpendSub">รวมภาษีมูลค่าเพิ่มแล้ว</span>
+      </div>
+
+      <div class="card kpi-card">
+        <span class="kpi-label" data-i18n="kpiTotalVat">ภาษีมูลค่าเพิ่ม 7% รวม</span>
+        <strong class="kpi-value" id="kpiTotalVat">฿0.00</strong>
+        <span class="kpi-sub" data-i18n="kpiVatSub">ภาษีซื้อที่ตรวจสอบแล้ว</span>
+      </div>
+
+      <div class="card kpi-card">
+        <span class="kpi-label" data-i18n="kpiPassRate">อัตราความถูกต้องทางคณิตศาสตร์</span>
+        <strong class="kpi-value" id="kpiPassRate">0%</strong>
+        <span class="kpi-sub" id="kpiPassCount">0 / 0 PASS</span>
+      </div>
+    </section>
+
+    <!-- Primary Workspace Navigation Tabs & Export Actions -->
+    <div class="workspace-toolbar">
+      <div class="view-tabs" role="tablist">
+        <button
+          type="button"
+          class="view-tab active"
+          id="tabInspectorBtn"
+          role="tab"
+          aria-selected="true"
+          data-target="inspectorView"
+          data-i18n="tabInspector"
+        >
+          🔍 ตรวจสอบและแก้ไขใบเสร็จ
+        </button>
+        <button
+          type="button"
+          class="view-tab"
+          id="tabMetricsBtn"
+          role="tab"
+          aria-selected="false"
+          data-target="metricsView"
+          data-i18n="tabMetrics"
+        >
+          📊 ประสิทธิภาพระบบ &amp; Ground Truth
+        </button>
+      </div>
+
+      <div class="export-actions">
+        <button type="button" id="exportExcelBtn" class="btn btn-success" disabled data-i18n="exportExcelBtn">
+          📗 ส่งออก Excel (.xlsx)
+        </button>
+        <button type="button" id="exportJsonBtn" class="btn btn-secondary" disabled data-i18n="exportJsonBtn">
+          📘 ส่งออก JSON (.json)
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW 1: Adaptive Receipt Inspector & Interactive Editor -->
+    <section id="inspectorView" class="workspace-panel">
+      <!-- Empty State -->
+      <div id="emptyState" class="card empty-state">
+        <div class="empty-icon" aria-hidden="true">📂</div>
+        <h3 data-i18n="emptyTitle">ยังไม่มีข้อมูลใบเสร็จที่สกัดแล้ว</h3>
+        <p data-i18n="emptyDesc">
+          อัปโหลดรูปภาพหรือไฟล์ PDF ใบเสร็จด้านบน แล้วกด "สกัดข้อมูลด้วย AI" หรือกด "โหลดตัวอย่างทดสอบ" เพื่อดูการทำงาน
+        </p>
+      </div>
+
+      <!-- Active Receipt Workspace -->
+      <div id="activeInspector" class="hidden">
+        <!-- Batch Receipt Selector Bar -->
+        <div class="card batch-bar">
+          <span class="batch-bar-label" data-i18n="selectReceiptLabel">เลือกรายการใบเสร็จ:</span>
+          <div id="receiptSelectorList" class="receipt-pills"></div>
+        </div>
+
+        <!-- Side-by-Side (Desktop) / Stacked (Mobile) Inspector Grid -->
+        <div class="inspector-grid">
+          <!-- Left Column: Document Preview -->
+          <div class="card preview-card">
+            <div class="card-header">
+              <h3 class="card-title">
+                <span>🖼️</span>
+                <span data-i18n="previewTitle">ภาพต้นฉบับเอกสาร</span>
+              </h3>
+              <div class="preview-controls">
+                <button type="button" id="pdfPrevBtn" class="btn btn-xs btn-outline hidden">◀</button>
+                <span id="pdfPageInfo" class="badge-muted hidden">1 / 1</span>
+                <button type="button" id="pdfNextBtn" class="btn btn-xs btn-outline hidden">▶</button>
+                <button type="button" id="zoomToggleBtn" class="btn btn-xs btn-secondary" data-i18n="zoomBtn">
+                  🔍 ขยายภาพ
+                </button>
+              </div>
+            </div>
+
+            <div id="previewViewport" class="preview-viewport">
+              <img id="receiptImagePreview" class="preview-media hidden" alt="Receipt Preview" />
+              <canvas id="receiptPdfCanvas" class="preview-media hidden"></canvas>
+              <div id="demoPreviewPlaceholder" class="demo-doc-mockup hidden"></div>
+            </div>
+            <p id="previewFileMeta" class="preview-meta"></p>
+          </div>
+
+          <!-- Right Column: Validation Status + Structured Editor -->
+          <div class="editor-column">
+            <!-- Automated Math & VAT Audit Card -->
+            <div id="validationCard" class="card validation-card">
+              <div class="validation-header">
+                <span id="validationBadge" class="val-badge">✅ PASS</span>
+                <span id="extractionTimeBadge" class="badge-muted">⏱️ 1.42s</span>
+              </div>
+              <div id="validationDetails" class="validation-details"></div>
+            </div>
+
+            <!-- Header Metadata Editor -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">
+                  <span>🏢</span>
+                  <span data-i18n="headerFieldsTitle">ข้อมูลหัวบิล / ร้านค้า (แก้ไขได้)</span>
+                </h3>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label for="fieldReceiptNo" data-i18n="lblReceiptNo">เลขที่ใบเสร็จ / ใบกำกับภาษี</label>
+                  <input type="text" id="fieldReceiptNo" class="form-input" data-field="receipt_no" />
+                </div>
+                <div class="form-group">
+                  <label for="fieldMerchant" data-i18n="lblMerchant">ชื่อร้านค้า / บริษัท</label>
+                  <input type="text" id="fieldMerchant" class="form-input" data-field="merchant_name" />
+                </div>
+                <div class="form-group">
+                  <label for="fieldDate" data-i18n="lblDate">วันที่ (DD/MM/YYYY)</label>
+                  <input type="text" id="fieldDate" class="form-input" data-field="date" placeholder="DD/MM/YYYY" />
+                </div>
+                <div class="form-group">
+                  <label for="fieldTime" data-i18n="lblTime">เวลา (HH:MM)</label>
+                  <input type="text" id="fieldTime" class="form-input" data-field="time" placeholder="HH:MM" />
+                </div>
+                <div class="form-group full-span">
+                  <label for="fieldTaxId" data-i18n="lblTaxId">เลขประจำตัวผู้เสียภาษี (13 หรือ 15 หลัก)</label>
+                  <input type="text" id="fieldTaxId" class="form-input" data-field="tax_id" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Interactive Line-Items Table -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">
+                  <span>📋</span>
+                  <span data-i18n="itemsTableTitle">รายการสินค้า / บริการ</span>
+                </h3>
+                <button type="button" id="addItemBtn" class="btn btn-xs btn-primary" data-i18n="addItemBtn">
+                  + เพิ่มรายการ
+                </button>
+              </div>
+
+              <div class="table-wrapper">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th style="min-width: 180px;" data-i18n="thItemName">รายการสินค้า</th>
+                      <th style="width: 85px;" data-i18n="thQty">จำนวน</th>
+                      <th style="width: 115px;" data-i18n="thUnitPrice">ราคา/หน่วย</th>
+                      <th style="width: 120px;" data-i18n="thLineTotal">รวมเงิน</th>
+                      <th style="width: 54px;" data-i18n="thAction">ลบ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="itemsTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Totals & Tax Summary Editor -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">
+                  <span>🧮</span>
+                  <span data-i18n="totalsTitle">สรุปยอดเงินและภาษีมูลค่าเพิ่ม 7%</span>
+                </h3>
+                <div class="btn-row">
+                  <button
+                    type="button"
+                    id="recalcInclBtn"
+                    class="btn btn-xs btn-outline"
+                    data-i18n="recalcInclBtn"
+                  >
+                    คำนวณแบบรวม VAT 7%
+                  </button>
+                  <button
+                    type="button"
+                    id="recalcExclBtn"
+                    class="btn btn-xs btn-outline"
+                    data-i18n="recalcExclBtn"
+                  >
+                    คำนวณแบบแยก VAT 7%
+                  </button>
+                </div>
+              </div>
+
+              <div class="totals-grid">
+                <div class="form-group">
+                  <label for="fieldSubtotal" data-i18n="lblSubtotal">ยอดก่อนภาษี (Subtotal Excl. VAT)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    id="fieldSubtotal"
+                    class="form-input num-input"
+                    data-field="subtotal_ex_vat"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="fieldVat" data-i18n="lblVat">ภาษีมูลค่าเพิ่ม 7% (VAT 7%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    id="fieldVat"
+                    class="form-input num-input"
+                    data-field="vat_7_percent"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="fieldGrandTotal" data-i18n="lblGrandTotal">ยอดสุทธิรวม (Grand Total)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    id="fieldGrandTotal"
+                    class="form-input num-input grand-total-input"
+                    data-field="grand_total"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: System Performance & Ground Truth Accuracy Evaluation -->
+    <section id="metricsView" class="workspace-panel hidden">
+      <div class="metrics-grid">
+        <!-- Time Efficiency Benchmark Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <span>⚡</span>
+              <span data-i18n="timeBenchTitle">เปรียบเทียบเวลาประมวลผล (AI vs. คีย์ข้อมูลด้วยมือ)</span>
+            </h3>
+          </div>
+          <p class="card-desc" data-i18n="timeBenchDesc">
+            เปรียบเทียบความเร็วในการสกัดข้อมูลด้วย Gemini 2.5 Flash เทียบกับค่าเฉลี่ยการบันทึกบัญชีด้วยมนุษย์ (~90 วินาที/ใบเสร็จ)
+          </p>
+
+          <div class="benchmark-bars">
+            <div class="bench-row">
+              <div class="bench-info">
+                <span data-i18n="aiTimeLabel">🤖 เวลาประมวลผลด้วย AI (รวม)</span>
+                <strong id="metricAiTime">0.00 s</strong>
+              </div>
+              <div class="progress-track">
+                <div id="aiTimeBar" class="progress-fill fill-ai" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <div class="bench-row">
+              <div class="bench-info">
+                <span data-i18n="manualTimeLabel">🧑‍💻 เวลาประมาณการคีย์ด้วยมือ (90 วินาที/ใบ)</span>
+                <strong id="metricManualTime">0.00 s</strong>
+              </div>
+              <div class="progress-track">
+                <div id="manualTimeBar" class="progress-fill fill-manual" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="time-saved-highlight">
+            <span data-i18n="timeSavedLabel">ประหยัดเวลาทำงานได้:</span>
+            <strong id="metricTimeSavedPct">0.0%</strong>
+            <span id="metricTimeSavedSec" class="badge-muted">(0.0s)</span>
+          </div>
+        </div>
+
+        <!-- Optional Ground Truth Evaluator Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <span>🎯</span>
+              <span data-i18n="gtTitle">ประเมินความแม่นยำเทียบเฉลย (Ground Truth Evaluator)</span>
+            </h3>
+          </div>
+          <p class="card-desc" data-i18n="gtDesc">
+            อัปโหลดไฟล์ Excel เฉลย (.xlsx ที่มีชีต 'Receipt Summary' และ 'Receipt Details') เพื่อคำนวณความแม่นยำระดับฟิลด์ (Field-Level Accuracy %)
+          </p>
+
+          <div class="btn-row">
+            <label for="groundTruthInput" class="btn btn-primary cursor-pointer" data-i18n="uploadGtBtn">
+              📂 อัปโหลดไฟล์เฉลย (.xlsx)
+            </label>
+            <input type="file" id="groundTruthInput" accept=".xlsx,.xls" hidden />
+          </div>
+
+          <div id="gtResultBox" class="gt-result-box hidden">
+            <div class="gt-score-banner">
+              <span data-i18n="gtAccuracyLabel">ความแม่นยำระดับฟิลด์โดยรวม (Field-Level Accuracy):</span>
+              <strong id="gtAccuracyValue" class="gt-score">0.00%</strong>
+            </div>
+            <div class="table-wrapper mt-sm">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="gtThReceipt">เลขที่ใบเสร็จ</th>
+                    <th data-i18n="gtThMatched">ฟิลด์ที่ตรงกัน</th>
+                    <th data-i18n="gtThAccuracy">ความแม่นยำ (%)</th>
+                    <th data-i18n="gtThDiff">รายละเอียดจุดต่าง</th>
+                  </tr>
+                </thead>
+                <tbody id="gtTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Full-Screen Image Zoom Modal -->
+  <div id="zoomModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <button type="button" id="closeZoomBtn" class="modal-close" aria-label="Close Zoom">✕</button>
+      <img id="zoomedImg" src="" alt="Zoomed Receipt" />
+    </div>
+  </div>
+
+  <!-- Processing Overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite">
+    <div class="loader-box">
+      <div class="spinner" aria-hidden="true"></div>
+      <h3 id="loadingTitle" data-i18n="loadingTitle">กำลังวิเคราะห์เอกสารด้วย Gemini 2.5 Flash...</h3>
+      <p id="loadingProgress">0 / 0</p>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="assertive"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
